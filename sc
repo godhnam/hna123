@@ -60,7 +60,7 @@ local function createGlowingText(text, position, fontSize)
 end
 
 local title = createGlowingText("MARIS HUB", UDim2.new(0, 0, 0, 20), 28)
-local status = createGlowingText("Auto Chest & Rare Item Protect", UDim2.new(0, 0, 0, 70), 20)
+local status = createGlowingText("Kaitun Auto Chest", UDim2.new(0, 0, 0, 70), 20)
 local link = createGlowingText("https://discord.gg/vNWPpQUVuV", UDim2.new(0, 0, 0, 120), 16)
 
 RunService.RenderStepped:Connect(function()
