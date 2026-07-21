@@ -1,5 +1,5 @@
 -- =========================================================================
--- KHỞI TẠO HỆ THỐNG VÀ DỊCH VỤ
+-- MARIS HUB: KẾT HỢP AUTO FARM RƯƠNG & TELEPORT ĐÁNH BỆ VẬT PHẨM
 -- =========================================================================
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -12,11 +12,15 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Cấu hình
+-- Cấu hình chung
 _G.AutoFarmChest = true
 local ChestTargetLimit = 70
 local FarmSpeed = 300
 local countChests = 0
+
+-- Cấu hình Teleport Bệ & Vật phẩm
+local ToolName = "Fist of Darkness"
+local TargetAltarCFrame = CFrame.new(3777.67, 15.20, -3498.50) -- Tọa độ ô màu vàng sáng trên bệ[cite: 2]
 
 local isWorld3 = (game.PlaceId == 7449423635)
 local isWorld2 = (game.PlaceId == 444227218)
@@ -60,7 +64,7 @@ local function createGlowingText(text, position, fontSize)
 end
 
 local title = createGlowingText("MARIS HUB", UDim2.new(0, 0, 0, 20), 28)
-local status = createGlowingText("Auto Chest & Rare Item Protect", UDim2.new(0, 0, 0, 70), 20)
+local status = createGlowingText("Auto Chest & Altar Teleport", UDim2.new(0, 0, 0, 70), 20)
 local link = createGlowingText("https://discord.gg/vNWPpQUVuV", UDim2.new(0, 0, 0, 120), 16)
 
 RunService.RenderStepped:Connect(function()
@@ -74,7 +78,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- =========================================================================
--- HỆ THỐNG GHI NHỚ SERVER (TRÁNH LẠI SERVER CŨ)
+-- HỆ THỐNG GHI NHỚ SERVER (TRÁNH LẠI SERVER CŨ)[cite: 1]
 -- =========================================================================
 local function getVisitedServers()
     local list = {}
@@ -110,16 +114,13 @@ end
 pcall(function() saveVisitedServer(game.JobId) end)
 
 -- =========================================================================
--- REMOTE AN TOÀN
+-- REMOTE AN TOÀN VÀ CHỌN PHE[cite: 1]
 -- =========================================================================
 local function getCommF()
     local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
     return remotes and remotes:WaitForChild("CommF_", 5)
 end
 
--- =========================================================================
--- TỰ ĐỘNG CHỌN PHE (SET TEAM PIRATES)
--- =========================================================================
 local function selectTeam()
     local teamName = "Pirates"
     print("Đang tự động chọn phe: " .. teamName)
@@ -153,7 +154,7 @@ local function selectTeam()
 end
 
 -- =========================================================================
--- KIỂM TRA VẬT PHẨM HIẾM (FIST OF DARKNESS HOẶC GOD'S CHALICE)
+-- KIỂM TRA VẬT PHẨM HIẾM[cite: 1]
 -- =========================================================================
 local function checkRareItems()
     local bp = LocalPlayer:FindFirstChild("Backpack")
@@ -166,7 +167,26 @@ local function checkRareItems()
 end
 
 -- =========================================================================
--- HỌP SERVER ÍT NGƯỜI
+-- HÀM TỰ ĐỘNG CẦM VẬT PHẨM (FIST OF DARKNESS / TUSHITA)[cite: 2]
+-- =========================================================================
+local function forceEquipSpecificTool()
+    local character = LocalPlayer.Character
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not character or not backpack then return end
+    
+    local currentTool = character:FindFirstChildOfClass("Tool")
+    if not currentTool or currentTool.Name ~= ToolName then
+        local targetTool = backpack:FindFirstChild(ToolName) or character:FindFirstChild(ToolName)
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        
+        if targetTool and targetTool:IsA("Tool") and humanoid then
+            humanoid:EquipTool(targetTool)
+        end
+    end
+end
+
+-- =========================================================================
+-- HỌP SERVER ÍT NGƯỜI[cite: 1]
 -- =========================================================================
 local function hopLowServerFast()
     local CurrentPlaceId = game.PlaceId
@@ -229,7 +249,7 @@ local function thucHienHopServer()
 end
 
 -- =========================================================================
--- HÀM DI CHUYỂN (BAY/TELEPORT) MƯỢT MÀ - ĐÃ FIX LỖI GIẬT LAG
+-- HÀM DI CHUYỂN MƯỢT MÀ TÍCH HỢP GIỮ VẬT PHẨM (TỪ CODE TELE BỆ)[cite: 2]
 -- =========================================================================
 local function bayDen(targetCFrame, speed)
     local character = LocalPlayer.Character
@@ -242,20 +262,19 @@ local function bayDen(targetCFrame, speed)
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if not hrp or not humanoid then return end
     
-    -- Ngồi xuống để tránh bị khựng hoạt ảnh nhảy/di chuyển
     humanoid.Sit = false
     
-    local distance = (targetCFrame.Position - hrp.Position).Magnitude
+    -- Nếu có mang vật phẩm mục tiêu, tiến hành cầm sẵn trước khi bay
+    forceEquipSpecificTool()
     
-    -- Nếu khoảng cách gần thì dịch chuyển tức thời để tiết kiệm thời gian
-    if distance < 50 then
+    local distance = (targetCFrame.Position - hrp.Position).Magnitude
+    if distance < 30 then
         hrp.CFrame = targetCFrame
         return
     end
     
     local duration = distance / speed
     
-    -- Tạo một phần thân ảo (Ghost Part) để Tween mượt mà, tránh xung đột vật lý trực tiếp
     local pathPart = Instance.new("Part")
     pathPart.Name = "TweenGhostFix"
     pathPart.Transparency = 1
@@ -265,9 +284,7 @@ local function bayDen(targetCFrame, speed)
     pathPart.Size = Vector3.new(2, 2, 2)
     pathPart.Parent = workspace
     
-    -- Tắt va chạm toàn bộ nhân vật trong suốt quá trình bay để không bị kẹt địa hình
-    local noclipConnection
-    noclipConnection = RunService.Stepped:Connect(function()
+    local noclipConnection = RunService.Stepped:Connect(function()
         if character then
             for _, part in ipairs(character:GetDescendants()) do
                 if part:IsA("BasePart") then
@@ -277,34 +294,31 @@ local function bayDen(targetCFrame, speed)
         end
     end)
     
-    -- Đồng bộ hóa vị trí nhân vật với phần thân ảo qua sự kiện Heartbeat (giúp chuyển động cực kỳ mượt)
-    local heartbeatConnection
-    heartbeatConnection = RunService.Heartbeat:Connect(function()
+    local heartbeatConnection = RunService.Heartbeat:Connect(function()
         if hrp and pathPart then
             hrp.CFrame = pathPart.CFrame
-            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) -- Triệt tiêu lực quán tính gây giật
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
             hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            
+            -- Liên tục giữ vật phẩm trong lúc bay nếu cần
+            forceEquipSpecificTool()
         end
     end)
     
-    -- Thực hiện Tween phần thân ảo đến điểm đích
     local tween = TweenService:Create(pathPart, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
     tween:Play()
-    
-    -- Đợi đến khi bay tới nơi
     tween.Completed:Wait()
     
-    -- Dọn dẹp kết nối và phần thân ảo sau khi hoàn thành
     if heartbeatConnection then heartbeatConnection:Disconnect() end
     if noclipConnection then noclipConnection:Disconnect() end
     if pathPart then pathPart:Destroy() end
     
-    -- Cố định lại vị trí cuối chính xác
     hrp.CFrame = targetCFrame
+    forceEquipSpecificTool()
 end
 
 -- =========================================================================
--- HỆ THỐNG FARM RƯƠNG & TỰ ĐỘNG DỪNG KHI CÓ VẬT PHẨM QUÝ
+-- HỆ THỐNG FARM RƯƠNG & XỬ LÝ KHI CÓ VẬT PHẨM QUÝ[cite: 1]
 -- =========================================================================
 local function getNearestChest()
     local char = LocalPlayer.Character
@@ -340,11 +354,22 @@ local function runFarmChest()
         while _G.AutoFarmChest do
             task.wait()
             
-            -- KIỂM TRA LIÊN TỤC VẬT PHẨM HIẾM ĐỂ DỪNG NGAY LẬP TỨC
+            -- KIỂM TRA LIÊN TỤC VẬT PHẨM HIẾM ĐỂ DỪNG FARM VÀ TELE THẲNG VÀO BỆ[cite: 1, 2]
             if checkRareItems() then
                 _G.AutoFarmChest = false
                 globalNoclip:Disconnect()
-                print("🚨 PHÁT HIỆN VẬT PHẨM HIẾM TRONG BALO! ĐÃ DỪNG HOÀN TOÀN QUÁ TRÌNH FARM RƯƠNG.")
+                print("🚨 PHÁT HIỆN VẬT PHẨM HIẾM! DỪNG FARM RƯƠNG VÀ TIẾN HÀNH BAY VÀO Ô VÀNG SÁNG CỦA BỆ...")
+                
+                pcall(function()
+                    local char = LocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        -- Bay lên cao 150 studs trước rồi lao thẳng vào ô vàng sáng của bệ
+                        bayDen(hrp.CFrame + Vector3.new(0, 150, 0), FarmSpeed)
+                        bayDen(TargetAltarCFrame, FarmSpeed)
+                        print("✨ ĐÃ ĐƯA VẬT PHẨM VÀO Ô MÀU VÀNG SÁNG THÀNH CÔNG!")
+                    end
+                end)
                 break
             end
             
@@ -384,24 +409,22 @@ local function runFarmChest()
 end
 
 -- =========================================================================
--- KHỞI CHẠY CHƯƠNG TRÌNH
+-- KHỞI CHẠY CHƯƠNG TRÌNH[cite: 1]
 -- =========================================================================
 task.spawn(function()
     task.wait(2)
-    selectTeam() -- Tự động chọn phe Pirates
+    selectTeam() -- Tự động chọn phe Pirates[cite: 1]
     task.wait(2)
     
-    print("========== MARIS HUB: KHỞI ĐỘNG THÀNH CÔNG ==========")
+    print("========== MARIS HUB: KẾT HỢP CHEST & ALTAR TELEPORT THÀNH CÔNG ==========")
     runFarmChest()
     
-    -- Luồng giám sát dự phòng để đảm bảo dừng farm lập tức khi có vật phẩm
+    -- Luồng giám sát dự phòng[cite: 1]
     while true do
         task.wait(0.5)
-        if checkRareItems() then
-            if _G.AutoFarmChest then
-                _G.AutoFarmChest = false
-                print("🔥 CẢNH BÁO AN TOÀN: Hệ thống đã ép dừng toàn bộ bot farm rương vì bạn đang sở hữu vật phẩm hiếm!")
-            end
+        if checkRareItems() and _G.AutoFarmChest then
+            _G.AutoFarmChest = false
+            print("🔥 KÍCH HOẠT BẢO VỆ VẬT PHẨM VÀ TELE BỆ TỰ ĐỘNG!")
         end
     end
 end)
