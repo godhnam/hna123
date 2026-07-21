@@ -266,13 +266,12 @@ local function hopLowServerFast()
 end
 
 -- =========================================================================
--- KIỂM TRA CHÍNH XÁC FIST OF DARKNESS HOẶC BOSS DARKBEARD
+-- KIỂM TRA FIST OF DARKNESS HOẶC BOSS DARKBEARD
 -- =========================================================================
 local function hasFistOfDarkness()
     local bp = LocalPlayer:FindFirstChild("Backpack")
     local char = LocalPlayer.Character
     
-    -- Kiểm tra trong Backpack hoặc Character xem có item nào tên chứa chữ "Fist of Darkness" không
     if bp then
         for _, item in ipairs(bp:GetChildren()) do
             if string.find(item.Name, "Fist of Darkness") then return true end
@@ -297,19 +296,58 @@ local function getDarkbeardBoss()
 end
 
 -- =========================================================================
--- XỬ LÝ TRIỆU HỒI & ĐÁNH BOSS DARKBEARD TẠI ĐẢO ĐEN (DARK ARENA)
+-- HÀM TRANG BỊ VŨ KHÍ MELEE (CẬN CHIẾN)
+-- =========================================================================
+local function equipMelee()
+    local char = LocalPlayer.Character
+    local bp = LocalPlayer.Backpack
+    if not char then return end
+    
+    -- Kiểm tra xem đã cầm Melee chưa
+    local currentTool = char:FindFirstChildOfClass("Tool")
+    if currentTool and currentTool.ToolTip == "Melee" then
+        return currentTool
+    end
+    
+    -- Tìm trong Backpack hoặc Character xem có tool nào là Melee không
+    local function searchAndEquip(container)
+        for _, tool in ipairs(container:GetChildren()) do
+            if tool:IsA("Tool") and (tool.ToolTip == "Melee" or string.find(tool.Name, "Combat") or string.find(tool.Name, "Dark Step") or string.find(tool.Name, "Electro") or string.find(tool.Name, "Water Kung Fu") or string.find(tool.Name, "Dragon Breath") or string.find(tool.Name, "Superhuman") or string.find(tool.Name, "Death Step") or string.find(tool.Name, "Sharkman Karate") or string.find(tool.Name, "Electric Claw") or string.find(tool.Name, "Dragon Talon") or string.find(tool.Name, "Godhuman") or string.find(tool.Name, "Sanguine Art")) then
+                if container == bp then
+                    char.Humanoid:EquipTool(tool)
+                end
+                return tool
+            end
+        end
+        return nil
+    end
+    
+    local tool = searchAndEquip(char) or searchAndEquip(bp)
+    -- Nếu không tìm thấy nhãn Melee rõ ràng, lấy đại công cụ đầu tiên làm phương án dự phòng
+    if not tool and bp then
+        local firstTool = bp:FindFirstChildOfClass("Tool")
+        if firstTool then
+            char.Humanoid:EquipTool(firstTool)
+            tool = firstTool
+        end
+    end
+    return tool
+end
+
+-- =========================================================================
+-- XỬ LÝ TRIỆU HỒI & ĐÁNH BOSS DARKBEARD BẰNG MELEE
 -- =========================================================================
 local darkArenaCFrame = CFrame.new(3781.5, 23.4, -13904.3)
 
 local function handleDarkbeardEvent()
     _G.AutoFarmChest = false
-    print("⚔️ ĐÃ PHÁT HIỆN FIST OF DARKNESS HOẶC BOSS DARKBEARD! Đang tiến hành xử lý...")
+    print("⚔️ ĐÃ PHÁT HIỆN FIST OF DARKNESS HOẶC BOSS DARKBEARD! Tiến hành xử lý...")
     
     -- Bay đến Đảo Đen
     bayDen(darkArenaCFrame + Vector3.new(0, 15, 0), FarmSpeed)
     task.wait(1.5)
     
-    -- Nếu có Fist of Darkness trong balo, trang bị và chạm vào bệ thờ để triệu hồi
+    -- Nếu có Fist of Darkness trong balo, trang bị và chạm vào bệ thờ triệu hồi
     if hasFistOfDarkness() then
         print("🗿 Đang trang bị Fist of Darkness để kích hoạt bệ thờ...")
         pcall(function()
@@ -323,11 +361,9 @@ local function handleDarkbeardEvent()
         end)
         task.wait(1)
         
-        -- Tiến hành chạm sát vào bệ thờ (đúng vị trí trong hình bạn cung cấp) để server nhận diện cắm chìa khóa
         bayDen(darkArenaCFrame + Vector3.new(0, 3, 0), 150)
         task.wait(1)
         
-        -- Kích hoạt remote phòng hờ
         pcall(function()
             local CommF = getCommF()
             if CommF then
@@ -337,35 +373,33 @@ local function handleDarkbeardEvent()
         task.wait(2)
     end
     
-    -- Tiến hành đánh Boss Darkbeard với nhịp độ an toàn (không đánh quá nhanh)
-    print("🛡️ Đang tiến hành đánh Boss Darkbeard (Giữ nhịp độ an toàn)...")
+    -- Tiến hành đánh Boss Darkbeard bằng Melee với nhịp độ an toàn
+    print("🛡️ Đang đánh Boss Darkbeard bằng Melee (Kiểm soát tốc độ an toàn)...")
     while _G.AutoDarkbeard do
-        task.wait(0.3) -- Giãn cách nhịp đánh ổn định, chống lỗi
+        task.wait(0.35) -- Giãn cách nhịp đánh vừa phải, chống lỗi quét hệ thống
         
         local boss = getDarkbeardBoss()
         if boss and boss:FindFirstChild("HumanoidRootPart") and boss.Humanoid.Health > 0 then
-            -- Bay lơ lửng ngay trên đầu Boss để đánh an toàn
-            bayDen(boss.HumanoidRootPart.CFrame + Vector3.new(0, 15, 0), FarmSpeed)
+            -- Bay lơ lửng sát cạnh Boss để đánh Melee chuẩn xác
+            bayDen(boss.HumanoidRootPart.CFrame + Vector3.new(0, 10, 0), FarmSpeed)
             
             pcall(function()
-                local char = LocalPlayer.Character
-                if char then
-                    local tool = char:FindFirstChildOfClass("Tool")
-                    if not tool then
-                        local bp = LocalPlayer.Backpack
-                        local firstTool = bp:FindFirstChildOfClass("Tool")
-                        if firstTool then
-                            char.Humanoid:EquipTool(firstTool)
-                            tool = firstTool
-                        end
-                    end
-                    if tool and tool:FindFirstChild("Activate") then
-                        tool:Activate()
-                    end
+                local meleeTool = equipMelee()
+                if meleeTool and meleeTool:FindFirstChild("Activate") then
+                    meleeTool:Activate()
+                end
+                
+                -- Tự động bấm các phím kỹ năng Melee (Z, X, C) với khoảng nghỉ an toàn
+                local vim = game:GetService("VirtualInputManager")
+                for _, key in ipairs({Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C}) do
+                    vim:SendKeyEvent(true, key, false, game)
+                    task.wait(0.05)
+                    vim:SendKeyEvent(false, key, false, game)
+                    task.wait(0.1)
                 end
             end)
         else
-            print("🎉 Boss Darkbeard đã bị tiêu diệt! Quay lại quá trình săn rương...")
+            print("🎉 Boss Darkbeard đã bị hạ gục! Quay lại tiến trình săn rương...")
             task.wait(2)
             break
         end
@@ -409,7 +443,6 @@ local function runFarmChest()
         while _G.AutoFarmChest do
             task.wait()
             
-            -- GIÁM SÁT THỜI GIAN THỰC: Phát hiện có Fist hoặc Boss là ngắt farm rương ngay lập tức
             if isWorld2 and (hasFistOfDarkness() or getDarkbeardBoss()) then
                 _G.AutoFarmChest = false
                 globalNoclip:Disconnect()
@@ -469,16 +502,14 @@ task.spawn(function()
     selectTeam() -- Tự động chọn phe Pirates
     task.wait(2)
     
-    print("========== MARIS HUB: KHỞI ĐỘNG HOÀN TẤT ==========")
+    print("========== MARIS HUB: KHỞI ĐỘNG HOÀN TẤT (MELEE COMBAT) ==========")
     
-    -- Kiểm tra ngay từ đầu khi vào server
     if isWorld2 and (hasFistOfDarkness() or getDarkbeardBoss()) then
         handleDarkbeardEvent()
     else
         runFarmChest()
     end
     
-    -- Vòng lặp siêu giám sát nền 24/7
     while true do
         task.wait(0.5)
         if isWorld2 and _G.AutoDarkbeard and (hasFistOfDarkness() or getDarkbeardBoss()) then
