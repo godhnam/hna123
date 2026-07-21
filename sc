@@ -8,18 +8,20 @@ local CollectionService = game:GetService("CollectionService")
 local TweenService = game:GetService("TweenService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 -- Cấu hình
 _G.AutoFarmChest = true
+_G.AutoDarkbeard = true
 local ChestTargetLimit = 70
 local FarmSpeed = 300
 local countChests = 0
 
-local isWorld3 = (game.PlaceId == 7449423635)
 local isWorld2 = (game.PlaceId == 444227218)
+local isWorld3 = (game.PlaceId == 7449423635)
 
 -- =========================================================================
 -- GIAO DIỆN (UI) MARIS HUB FRAME CHEST
@@ -60,7 +62,7 @@ local function createGlowingText(text, position, fontSize)
 end
 
 local title = createGlowingText("MARIS HUB", UDim2.new(0, 0, 0, 20), 28)
-local status = createGlowingText("Kaitun Auto Chest", UDim2.new(0, 0, 0, 70), 20)
+local status = createGlowingText("Auto Chest & Darkbeard Boss", UDim2.new(0, 0, 0, 70), 18)
 local link = createGlowingText("https://discord.gg/vNWPpQUVuV", UDim2.new(0, 0, 0, 120), 16)
 
 RunService.RenderStepped:Connect(function()
@@ -153,16 +155,62 @@ local function selectTeam()
 end
 
 -- =========================================================================
--- KIỂM TRA VẬT PHẨM HIẾM (FIST OF DARKNESS HOẶC GOD'S CHALICE)
+-- HÀM DI CHUYỂN MƯỢT MÀ (ĐÃ FIX LỖI GIẬT LAG)
 -- =========================================================================
-local function checkRareItems()
-    local bp = LocalPlayer:FindFirstChild("Backpack")
-    local char = LocalPlayer.Character
+local function bayDen(targetCFrame, speed)
+    local character = LocalPlayer.Character
+    if not character then 
+        pcall(function() character = LocalPlayer.CharacterAdded:Wait() end)
+    end
+    if not character then return end
     
-    local hasChalice = (bp and bp:FindFirstChild("God's Chalice")) or (char and char:FindFirstChild("God's Chalice"))
-    local hasFist = (bp and bp:FindFirstChild("Fist of Darkness")) or (char and char:FindFirstChild("Fist of Darkness"))
+    local hrp = character:WaitForChild("HumanoidRootPart", 10)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not hrp or not humanoid then return end
     
-    return hasChalice or hasFist
+    humanoid.Sit = false
+    local distance = (targetCFrame.Position - hrp.Position).Magnitude
+    if distance < 50 then
+        hrp.CFrame = targetCFrame
+        return
+    end
+    
+    local duration = distance / speed
+    local pathPart = Instance.new("Part")
+    pathPart.Name = "TweenGhostFix"
+    pathPart.Transparency = 1
+    pathPart.Anchored = true
+    pathPart.CanCollide = false
+    pathPart.CFrame = hrp.CFrame
+    pathPart.Size = Vector3.new(2, 2, 2)
+    pathPart.Parent = workspace
+    
+    local noclipConnection
+    noclipConnection = RunService.Stepped:Connect(function()
+        if character then
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+        end
+    end)
+    
+    local heartbeatConnection
+    heartbeatConnection = RunService.Heartbeat:Connect(function()
+        if hrp and pathPart then
+            hrp.CFrame = pathPart.CFrame
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        end
+    end)
+    
+    local tween = TweenService:Create(pathPart, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+    tween:Play()
+    tween.Completed:Wait()
+    
+    if heartbeatConnection then heartbeatConnection:Disconnect() end
+    if noclipConnection then noclipConnection:Disconnect() end
+    if pathPart then pathPart:Destroy() end
+    hrp.CFrame = targetCFrame
 end
 
 -- =========================================================================
@@ -217,94 +265,104 @@ local function hopLowServerFast()
     end
 end
 
-local function thucHienHopServer()
-    if checkRareItems() then return end
+-- =========================================================================
+-- KIỂM TRA FIST OF DARKNESS HOẶC BOSS DARKBEARD
+-- =========================================================================
+local function hasFistOfDarkness()
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    local char = LocalPlayer.Character
+    return (bp and bp:FindFirstChild("Fist of Darkness")) or (char and char:FindFirstChild("Fist of Darkness"))
+end
+
+local function getDarkbeardBoss()
+    -- Tìm trong Workspace xem có boss Darkbeard xuất hiện sẵn chưa
+    local enemies = Workspace:FindFirstChild("Enemies") or Workspace
+    for _, v in ipairs(enemies:GetDescendants()) do
+        if v.Name == "Darkbeard" and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+            return v
+        end
+    end
+    return nil
+end
+
+-- =========================================================================
+-- HỆ THỐNG XỬ LÝ TRIỆU HỒI & ĐÁNH BOSS DARKBEARD (ĐẢO ĐEN / DARK ARENA)
+-- =========================================================================
+-- Tọa độ bệ thờ / Đảo Đen ở Sea 2 (Dark Arena)
+local darkArenaCFrame = CFrame.new(3781.5, 23.4, -13904.3) 
+
+local function handleDarkbeardEvent()
     _G.AutoFarmChest = false
-    print("🔄 Đang tìm và đổi sang Server ít người mới...")
-    while true do
-        if checkRareItems() then break end
-        hopLowServerFast()
-        task.wait(8)
-    end
-end
-
--- =========================================================================
--- HÀM DI CHUYỂN (BAY/TELEPORT) MƯỢT MÀ - ĐÃ FIX LỖI GIẬT LAG
--- =========================================================================
-local function bayDen(targetCFrame, speed)
-    local character = LocalPlayer.Character
-    if not character then 
-        pcall(function() character = LocalPlayer.CharacterAdded:Wait() end)
-    end
-    if not character then return end
+    print("⚔️ PHÁT HIỆN SỰ KIỆN DARKBEARD (Hoặc có Fist of Darkness)! Tiến hành xử lý...")
     
-    local hrp = character:WaitForChild("HumanoidRootPart", 10)
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not hrp or not humanoid then return end
+    -- Bước 1: Bay tới đảo Dark Arena
+    bayDen(darkArenaCFrame + Vector3.new(0, 20, 0), FarmSpeed)
+    task.wait(1)
     
-    -- Ngồi xuống để tránh bị khựng hoạt ảnh nhảy/di chuyển
-    humanoid.Sit = false
-    
-    local distance = (targetCFrame.Position - hrp.Position).Magnitude
-    
-    -- Nếu khoảng cách gần thì dịch chuyển tức thời để tiết kiệm thời gian
-    if distance < 50 then
-        hrp.CFrame = targetCFrame
-        return
-    end
-    
-    local duration = distance / speed
-    
-    -- Tạo một phần thân ảo (Ghost Part) để Tween mượt mà, tránh xung đột vật lý trực tiếp
-    local pathPart = Instance.new("Part")
-    pathPart.Name = "TweenGhostFix"
-    pathPart.Transparency = 1
-    pathPart.Anchored = true
-    pathPart.CanCollide = false
-    pathPart.CFrame = hrp.CFrame
-    pathPart.Size = Vector3.new(2, 2, 2)
-    pathPart.Parent = workspace
-    
-    -- Tắt va chạm toàn bộ nhân vật trong suốt quá trình bay để không bị kẹt địa hình
-    local noclipConnection
-    noclipConnection = RunService.Stepped:Connect(function()
-        if character then
-            for _, part in ipairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
+    -- Bước 2: Nếu có Fist trong người, tiến hành đặt vào bệ thờ triệu hồi
+    if hasFistOfDarkness() then
+        print("🗿 Đang cầm Fist of Darkness, tiến hành đặt vào bệ thờ triệu hồi Darkbeard...")
+        -- Kéo Fist vào tay nhân vật
+        pcall(function()
+            local bp = LocalPlayer.Backpack
+            local fist = bp:FindFirstChild("Fist of Darkness")
+            if fist then
+                LocalPlayer.Character.Humanoid:EquipTool(fist)
             end
+        end)
+        task.wait(1)
+        
+        -- Tương tác với bệ thờ (Thường ở Sea 2 Dark Arena có thể dùng Remote hoặc chạm vào bàn thờ)
+        pcall(function()
+            -- Gửi lệnh kích hoạt qua CommF_ hoặc tương tác gần bệ thờ
+            local CommF = getCommF()
+            if CommF then
+                CommF:InvokeServer("Darkbeard", "Spawn") -- Lệnh gọi nội bộ summon boss
+            end
+        end)
+        task.wait(2)
+    end
+    
+    -- Bước 3: Tự động đánh Boss Darkbeard (với tốc độ đánh vừa phải, an toàn)
+    print("🛡️ Đã vào khu vực Boss. Bắt đầu đánh Darkbeard (Tốc độ kiểm soát an toàn)...")
+    
+    local combatTimer = 0
+    while _G.AutoDarkbeard do
+        task.wait(0.2) -- Giãn cách nhịp đánh để không bị quá nhanh / tránh lỗi game
+        
+        local boss = getDarkbeardBoss()
+        if boss and boss:FindFirstChild("HumanoidRootPart") and boss.Humanoid.Health > 0 then
+            -- Bay lơ lửng sát cạnh Boss để đánh an toàn
+            bayDen(boss.HumanoidRootPart.CFrame + Vector3.new(0, 15, 0), FarmSpeed)
+            
+            -- Tự động equip vũ khí và đánh thường / bật skill nhẹ nhàng
+            pcall(function()
+                local char = LocalPlayer.Character
+                if char then
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    if not tool then
+                        local bp = LocalPlayer.Backpack
+                        local firstTool = bp:FindFirstChildOfClass("Tool")
+                        if firstTool then
+                            char.Humanoid:EquipTool(firstTool)
+                            tool = firstTool
+                        end
+                    end
+                    if tool and tool:FindFirstChild("Activate") then
+                        tool:Activate()
+                    end
+                end
+            end)
+        else
+            print("🎉 Boss Darkbeard đã bị hạ gục hoặc không tìm thấy! Quay lại tiến trình chính...")
+            task.wait(2)
+            break
         end
-    end)
-    
-    -- Đồng bộ hóa vị trí nhân vật với phần thân ảo qua sự kiện Heartbeat (giúp chuyển động cực kỳ mượt)
-    local heartbeatConnection
-    heartbeatConnection = RunService.Heartbeat:Connect(function()
-        if hrp and pathPart then
-            hrp.CFrame = pathPart.CFrame
-            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) -- Triệt tiêu lực quán tính gây giật
-            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        end
-    end)
-    
-    -- Thực hiện Tween phần thân ảo đến điểm đích
-    local tween = TweenService:Create(pathPart, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    tween:Play()
-    
-    -- Đợi đến khi bay tới nơi
-    tween.Completed:Wait()
-    
-    -- Dọn dẹp kết nối và phần thân ảo sau khi hoàn thành
-    if heartbeatConnection then heartbeatConnection:Disconnect() end
-    if noclipConnection then noclipConnection:Disconnect() end
-    if pathPart then pathPart:Destroy() end
-    
-    -- Cố định lại vị trí cuối chính xác
-    hrp.CFrame = targetCFrame
+    end
 end
 
 -- =========================================================================
--- HỆ THỐNG FARM RƯƠNG & TỰ ĐỘNG DỪNG KHI CÓ VẬT PHẨM QUÝ
+-- HỆ THỐNG FARM RƯƠNG & GIÁM SÁT SỰ KIỆN LIÊN TỤC
 -- =========================================================================
 local function getNearestChest()
     local char = LocalPlayer.Character
@@ -340,11 +398,11 @@ local function runFarmChest()
         while _G.AutoFarmChest do
             task.wait()
             
-            -- KIỂM TRA LIÊN TỤC VẬT PHẨM HIẾM ĐỂ DỪNG NGAY LẬP TỨC
-            if checkRareItems() then
+            -- Kiểm tra liên tục: Nếu có Fist trong người hoặc Boss xuất hiện -> Dừng farm rương, chuyển sang đánh Boss
+            if isWorld2 and (hasFistOfDarkness() or getDarkbeardBoss()) then
                 _G.AutoFarmChest = false
                 globalNoclip:Disconnect()
-                print("🚨 PHÁT HIỆN VẬT PHẨM HIẾM TRONG BALO! ĐÃ DỪNG HOÀN TOÀN QUÁ TRÌNH FARM RƯƠNG.")
+                handleDarkbeardEvent()
                 break
             end
             
@@ -370,13 +428,22 @@ local function runFarmChest()
                 
                 if countChests >= ChestTargetLimit then
                     globalNoclip:Disconnect()
-                    thucHienHopServer()
+                    _G.AutoFarmChest = false
+                    print("🔄 Đã đạt giới hạn rương. Đang đổi server...")
+                    while true do
+                        hopLowServerFast()
+                        task.wait(8)
+                    end
                     break
                 end
             else
                 print("⚠️ Hết rương trên server này. Đang đổi server...")
                 globalNoclip:Disconnect()
-                thucHienHopServer()
+                _G.AutoFarmChest = false
+                while true do
+                    hopLowServerFast()
+                    task.wait(8)
+                end
                 break
             end
         end
@@ -384,23 +451,29 @@ local function runFarmChest()
 end
 
 -- =========================================================================
--- KHỞI CHẠY CHƯƠNG TRÌNH
+-- KHỞI CHẠY CHƯƠNG TRÌNH CHÍNH
 -- =========================================================================
 task.spawn(function()
     task.wait(2)
     selectTeam() -- Tự động chọn phe Pirates
     task.wait(2)
     
-    print("========== MARIS HUB: KHỞI ĐỘNG THÀNH CÔNG ==========")
-    runFarmChest()
+    print("========== MARIS HUB: KHỞI ĐỘNG THÀNH CÔNG (DARKBEARD & CHEST) ==========")
     
-    -- Luồng giám sát dự phòng để đảm bảo dừng farm lập tức khi có vật phẩm
+    -- Kiểm tra ngay khi vừa vào server xem có Boss hoặc Fist sẵn không
+    if isWorld2 and (hasFistOfDarkness() or getDarkbeardBoss()) then
+        handleDarkbeardEvent()
+    else
+        runFarmChest()
+    end
+    
+    -- Luồng giám sát chạy ngầm 24/7
     while true do
-        task.wait(0.5)
-        if checkRareItems() then
+        task.wait(1)
+        if isWorld2 and _G.AutoDarkbeard and not getDarkbeardBoss() and (hasFistOfDarkness() or getDarkbeardBoss()) then
             if _G.AutoFarmChest then
                 _G.AutoFarmChest = false
-                print("🔥 CẢNH BÁO AN TOÀN: Hệ thống đã ép dừng toàn bộ bot farm rương vì bạn đang sở hữu vật phẩm hiếm!")
+                handleDarkbeardEvent()
             end
         end
     end
