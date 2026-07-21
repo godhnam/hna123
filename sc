@@ -1,5 +1,5 @@
 -- =========================================================================
--- KHỞI TẠO HỆ THỐNG VÀ DỊCH VỤ
+-- MARIS HUB: HỆ THỐNG AUTO CHEST & DARKBEARD BOSS (PHIÊN BẢN CHỈNH CHU 2026)
 -- =========================================================================
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -13,7 +13,7 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Cấu hình
+-- Cấu hình hệ thống
 _G.AutoFarmChest = true
 _G.AutoDarkbeard = true
 local ChestTargetLimit = 70
@@ -24,7 +24,7 @@ local isWorld2 = (game.PlaceId == 444227218)
 local isWorld3 = (game.PlaceId == 7449423635)
 
 -- =========================================================================
--- GIAO DIỆN (UI) MARIS HUB FRAME CHEST
+-- GIAO DIỆN (UI) MARIS HUB
 -- =========================================================================
 local screenGui = Instance.new("ScreenGui", playerGui)
 screenGui.Name = "MarisHub_ChestGUI"
@@ -112,19 +112,15 @@ end
 pcall(function() saveVisitedServer(game.JobId) end)
 
 -- =========================================================================
--- REMOTE AN TOÀN
+-- REMOTE & HỖ TRỢ AN TOÀN
 -- =========================================================================
 local function getCommF()
     local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
     return remotes and remotes:WaitForChild("CommF_", 5)
 end
 
--- =========================================================================
--- TỰ ĐỘNG CHỌN PHE (SET TEAM PIRATES)
--- =========================================================================
 local function selectTeam()
     local teamName = "Pirates"
-    print("Đang tự động chọn phe: " .. teamName)
     pcall(function()
         local CommF = getCommF()
         if CommF then CommF:InvokeServer("SetTeam", teamName) end
@@ -134,20 +130,7 @@ local function selectTeam()
         if pg then
             for _, v in ipairs(pg:GetDescendants()) do
                 if v:IsA("TextButton") and (v.Name == teamName or string.find(v.Text, teamName)) then
-                    local clicked = false
-                    if getconnections then
-                        for _, c in pairs(getconnections(v.MouseButton1Click)) do
-                            c.Function()
-                            clicked = true
-                        end
-                    end
-                    if not clicked and firesignal then
-                        firesignal(v.MouseButton1Click)
-                        clicked = true
-                    end
-                    if not clicked then
-                        pcall(function() v:Click() end)
-                    end
+                    if firesignal then firesignal(v.MouseButton1Click) else v:Click() end
                 end
             end
         end
@@ -155,7 +138,7 @@ local function selectTeam()
 end
 
 -- =========================================================================
--- HÀM DI CHUYỂN MƯỢT MÀ (ĐÃ FIX LỖI GIẬT LAG)
+-- HÀM DI CHUYỂN MƯỢT MÀ (TỐC ĐỘ CAO KHÔNG RUNG LẮC)
 -- =========================================================================
 local function bayDen(targetCFrame, speed)
     local character = LocalPlayer.Character
@@ -185,8 +168,7 @@ local function bayDen(targetCFrame, speed)
     pathPart.Size = Vector3.new(2, 2, 2)
     pathPart.Parent = workspace
     
-    local noclipConnection
-    noclipConnection = RunService.Stepped:Connect(function()
+    local noclipConnection = RunService.Stepped:Connect(function()
         if character then
             for _, part in ipairs(character:GetDescendants()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
@@ -194,8 +176,7 @@ local function bayDen(targetCFrame, speed)
         end
     end)
     
-    local heartbeatConnection
-    heartbeatConnection = RunService.Heartbeat:Connect(function()
+    local heartbeatConnection = RunService.Heartbeat:Connect(function()
         if hrp and pathPart then
             hrp.CFrame = pathPart.CFrame
             hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -214,7 +195,7 @@ local function bayDen(targetCFrame, speed)
 end
 
 -- =========================================================================
--- HỌP SERVER ÍT NGƯỜI
+-- HỌP SERVER NHANH
 -- =========================================================================
 local function hopLowServerFast()
     local CurrentPlaceId = game.PlaceId
@@ -266,23 +247,24 @@ local function hopLowServerFast()
 end
 
 -- =========================================================================
--- KIỂM TRA FIST OF DARKNESS HOẶC BOSS DARKBEARD
+-- KIỂM TRA CHÍNH XÁC FIST OF DARKNESS (QUÉT TOÀN BỘ BALO & HOTBAR)
 -- =========================================================================
 local function hasFistOfDarkness()
     local bp = LocalPlayer:FindFirstChild("Backpack")
     local char = LocalPlayer.Character
     
-    if bp then
-        for _, item in ipairs(bp:GetChildren()) do
-            if string.find(item.Name, "Fist of Darkness") then return true end
+    -- Kiểm tra trong Balo (Backpack) hoặc Nhân vật (Character/Hotbar)
+    local containers = {bp, char}
+    for _, container in ipairs(containers) do
+        if container then
+            for _, item in ipairs(container:GetChildren()) do
+                if item:IsA("Tool") and string.find(item.Name, "Fist of Darkness") then
+                    return true, item
+                end
+            end
         end
     end
-    if char then
-        for _, item in ipairs(char:GetChildren()) do
-            if string.find(item.Name, "Fist of Darkness") then return true end
-        end
-    end
-    return false
+    return false, nil
 end
 
 local function getDarkbeardBoss()
@@ -296,20 +278,13 @@ local function getDarkbeardBoss()
 end
 
 -- =========================================================================
--- HÀM TRANG BỊ VŨ KHÍ MELEE (CẬN CHIẾN)
+-- HÀM TRANG BỊ VŨ KHÍ MELEE
 -- =========================================================================
 local function equipMelee()
     local char = LocalPlayer.Character
     local bp = LocalPlayer.Backpack
-    if not char then return end
+    if not char then return nil end
     
-    -- Kiểm tra xem đã cầm Melee chưa
-    local currentTool = char:FindFirstChildOfClass("Tool")
-    if currentTool and currentTool.ToolTip == "Melee" then
-        return currentTool
-    end
-    
-    -- Tìm trong Backpack hoặc Character xem có tool nào là Melee không
     local function searchAndEquip(container)
         for _, tool in ipairs(container:GetChildren()) do
             if tool:IsA("Tool") and (tool.ToolTip == "Melee" or string.find(tool.Name, "Combat") or string.find(tool.Name, "Dark Step") or string.find(tool.Name, "Electro") or string.find(tool.Name, "Water Kung Fu") or string.find(tool.Name, "Dragon Breath") or string.find(tool.Name, "Superhuman") or string.find(tool.Name, "Death Step") or string.find(tool.Name, "Sharkman Karate") or string.find(tool.Name, "Electric Claw") or string.find(tool.Name, "Dragon Talon") or string.find(tool.Name, "Godhuman") or string.find(tool.Name, "Sanguine Art")) then
@@ -322,45 +297,36 @@ local function equipMelee()
         return nil
     end
     
-    local tool = searchAndEquip(char) or searchAndEquip(bp)
-    -- Nếu không tìm thấy nhãn Melee rõ ràng, lấy đại công cụ đầu tiên làm phương án dự phòng
-    if not tool and bp then
-        local firstTool = bp:FindFirstChildOfClass("Tool")
-        if firstTool then
-            char.Humanoid:EquipTool(firstTool)
-            tool = firstTool
-        end
-    end
-    return tool
+    return searchAndEquip(char) or searchAndEquip(bp) or bp:FindFirstChildOfClass("Tool")
 end
 
 -- =========================================================================
--- XỬ LÝ TRIỆU HỒI & ĐÁNH BOSS DARKBEARD BẰNG MELEE
+-- XỬ LÝ SỰ KIỆN TRIỆU HỒI & ĐÁNH BOSS DARKBEARD
 -- =========================================================================
 local darkArenaCFrame = CFrame.new(3781.5, 23.4, -13904.3)
+local isHandlingEvent = false
 
 local function handleDarkbeardEvent()
-    _G.AutoFarmChest = false
-    print("⚔️ ĐÃ PHÁT HIỆN FIST OF DARKNESS HOẶC BOSS DARKBEARD! Tiến hành xử lý...")
+    if isHandlingEvent then return end
+    isHandlingEvent = true
+    _G.AutoFarmChest = false -- Dừng hoàn toàn việc farm rương
     
-    -- Bay đến Đảo Đen
+    print("⚔️ PHÁT HIỆN FIST OF DARKNESS HOẶC BOSS DARKBEARD! Đang bay đến Đảo Đen...")
+    
+    -- Bay tới Đảo Đen
     bayDen(darkArenaCFrame + Vector3.new(0, 15, 0), FarmSpeed)
     task.wait(1.5)
     
-    -- Nếu có Fist of Darkness trong balo, trang bị và chạm vào bệ thờ triệu hồi
-    if hasFistOfDarkness() then
-        print("🗿 Đang trang bị Fist of Darkness để kích hoạt bệ thờ...")
+    -- Nếu đang có Fist trong người, tiến hành trang bị và triệu hồi
+    local hasFist, fistTool = hasFistOfDarkness()
+    if hasFist and fistTool then
+        print("🗿 Đang trang bị Fist of Darkness để kích hoạt bệ thờ triệu hồi...")
         pcall(function()
-            local bp = LocalPlayer.Backpack
-            for _, item in ipairs(bp:GetChildren()) do
-                if string.find(item.Name, "Fist of Darkness") then
-                    LocalPlayer.Character.Humanoid:EquipTool(item)
-                    break
-                end
-            end
+            LocalPlayer.Character.Humanoid:EquipTool(fistTool)
         end)
         task.wait(1)
         
+        -- Tiến sát bệ thờ (Trụ đá)
         bayDen(darkArenaCFrame + Vector3.new(0, 3, 0), 150)
         task.wait(1)
         
@@ -373,14 +339,13 @@ local function handleDarkbeardEvent()
         task.wait(2)
     end
     
-    -- Tiến hành đánh Boss Darkbeard bằng Melee với nhịp độ an toàn
-    print("🛡️ Đang đánh Boss Darkbeard bằng Melee (Kiểm soát tốc độ an toàn)...")
+    -- Vòng lặp đánh Boss Darkbeard bằng Melee (kiểm soát tốc độ an toàn)
+    print("🛡️ Đang đánh Boss Darkbeard bằng Melee...")
     while _G.AutoDarkbeard do
-        task.wait(0.35) -- Giãn cách nhịp đánh vừa phải, chống lỗi quét hệ thống
+        task.wait(0.35)
         
         local boss = getDarkbeardBoss()
         if boss and boss:FindFirstChild("HumanoidRootPart") and boss.Humanoid.Health > 0 then
-            -- Bay lơ lửng sát cạnh Boss để đánh Melee chuẩn xác
             bayDen(boss.HumanoidRootPart.CFrame + Vector3.new(0, 10, 0), FarmSpeed)
             
             pcall(function()
@@ -389,7 +354,7 @@ local function handleDarkbeardEvent()
                     meleeTool:Activate()
                 end
                 
-                -- Tự động bấm các phím kỹ năng Melee (Z, X, C) với khoảng nghỉ an toàn
+                -- Bấm chiêu thức Melee (Z, X, C)
                 local vim = game:GetService("VirtualInputManager")
                 for _, key in ipairs({Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C}) do
                     vim:SendKeyEvent(true, key, false, game)
@@ -399,15 +364,18 @@ local function handleDarkbeardEvent()
                 end
             end)
         else
-            print("🎉 Boss Darkbeard đã bị hạ gục! Quay lại tiến trình săn rương...")
+            print("🎉 Boss Darkbeard đã bị hạ gục! Tiếp tục quy trình...")
             task.wait(2)
             break
         end
     end
+    
+    isHandlingEvent = false
+    _G.AutoFarmChest = true
 end
 
 -- =========================================================================
--- HỆ THỐNG FARM RƯƠNG & GIÁM SÁT SỰ KIỆN LIÊN TỤC
+-- HỆ THỐNG FARM RƯƠNG
 -- =========================================================================
 local function getNearestChest()
     local char = LocalPlayer.Character
@@ -440,55 +408,64 @@ local function runFarmChest()
     end)
     
     task.spawn(function()
-        while _G.AutoFarmChest do
-            task.wait()
+        while true do
+            task.wait(0.2)
             
-            if isWorld2 and (hasFistOfDarkness() or getDarkbeardBoss()) then
-                _G.AutoFarmChest = false
+            -- GIÁM SÁT LIÊN TỤC: Ngay khi phát hiện có Fist hoặc Boss xuất hiện, ngắt rương ngay lập tức
+            if isWorld2 and (hasFistOfDarkness() or getDarkbeardBoss()) and not isHandlingEvent then
                 globalNoclip:Disconnect()
                 handleDarkbeardEvent()
-                break
-            end
-            
-            local targetChest = getNearestChest()
-            if targetChest then
-                local chestPos = targetChest:GetPivot().Position
-                bayDen(CFrame.new(chestPos), FarmSpeed)
-                
-                pcall(function()
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                        LocalPlayer.Character.Humanoid.Jump = true
+                -- Khởi động lại noclip rương sau khi xong boss
+                globalNoclip = RunService.Stepped:Connect(function()
+                    if _G.AutoFarmChest and LocalPlayer.Character then
+                        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                            if part:IsA("BasePart") then part.CanCollide = false end
+                        end
                     end
                 end)
-                
-                local waitTime = 0
-                while not targetChest:GetAttribute("IsDisabled") and targetChest.Parent ~= nil and waitTime < 0.4 do
-                    task.wait(0.05)
-                    waitTime = waitTime + 0.05
-                end
-                
-                countChests = countChests + 1
-                print(string.format("🎒 Nhặt rương (%d/%d)", countChests, ChestTargetLimit))
-                
-                if countChests >= ChestTargetLimit then
+            end
+            
+            if _G.AutoFarmChest then
+                local targetChest = getNearestChest()
+                if targetChest then
+                    local chestPos = targetChest:GetPivot().Position
+                    bayDen(CFrame.new(chestPos), FarmSpeed)
+                    
+                    pcall(function()
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                            LocalPlayer.Character.Humanoid.Jump = true
+                        end
+                    end)
+                    
+                    local waitTime = 0
+                    while not targetChest:GetAttribute("IsDisabled") and targetChest.Parent ~= nil and waitTime < 0.4 do
+                        task.wait(0.05)
+                        waitTime = waitTime + 0.05
+                    end
+                    
+                    countChests = countChests + 1
+                    print(string.format("🎒 Nhặt rương (%d/%d)", countChests, ChestTargetLimit))
+                    
+                    if countChests >= ChestTargetLimit then
+                        globalNoclip:Disconnect()
+                        _G.AutoFarmChest = false
+                        print("🔄 Đã đạt giới hạn rương. Đang đổi server...")
+                        while true do
+                            hopLowServerFast()
+                            task.wait(8)
+                        end
+                        break
+                    end
+                else
+                    print("⚠️ Hết rương trên server này. Đang đổi server...")
                     globalNoclip:Disconnect()
                     _G.AutoFarmChest = false
-                    print("🔄 Đã đạt giới hạn rương. Đang đổi server...")
                     while true do
                         hopLowServerFast()
                         task.wait(8)
                     end
                     break
                 end
-            else
-                print("⚠️ Hết rương trên server này. Đang đổi server...")
-                globalNoclip:Disconnect()
-                _G.AutoFarmChest = false
-                while true do
-                    hopLowServerFast()
-                    task.wait(8)
-                end
-                break
             end
         end
     end)
@@ -499,24 +476,14 @@ end
 -- =========================================================================
 task.spawn(function()
     task.wait(2)
-    selectTeam() -- Tự động chọn phe Pirates
+    selectTeam()
     task.wait(2)
     
-    print("========== MARIS HUB: KHỞI ĐỘNG HOÀN TẤT (MELEE COMBAT) ==========")
+    print("========== MARIS HUB: KHỞI ĐỘNG THÀNH CÔNG (CHỈNH CHU) ==========")
     
     if isWorld2 and (hasFistOfDarkness() or getDarkbeardBoss()) then
         handleDarkbeardEvent()
-    else
-        runFarmChest()
     end
     
-    while true do
-        task.wait(0.5)
-        if isWorld2 and _G.AutoDarkbeard and (hasFistOfDarkness() or getDarkbeardBoss()) then
-            if _G.AutoFarmChest then
-                _G.AutoFarmChest = false
-                handleDarkbeardEvent()
-            end
-        end
-    end
+    runFarmChest()
 end)
