@@ -266,16 +266,27 @@ local function hopLowServerFast()
 end
 
 -- =========================================================================
--- KIỂM TRA FIST OF DARKNESS HOẶC BOSS DARKBEARD
+-- KIỂM TRA CHÍNH XÁC FIST OF DARKNESS HOẶC BOSS DARKBEARD
 -- =========================================================================
 local function hasFistOfDarkness()
     local bp = LocalPlayer:FindFirstChild("Backpack")
     local char = LocalPlayer.Character
-    return (bp and bp:FindFirstChild("Fist of Darkness")) or (char and char:FindFirstChild("Fist of Darkness"))
+    
+    -- Kiểm tra trong Backpack hoặc Character xem có item nào tên chứa chữ "Fist of Darkness" không
+    if bp then
+        for _, item in ipairs(bp:GetChildren()) do
+            if string.find(item.Name, "Fist of Darkness") then return true end
+        end
+    end
+    if char then
+        for _, item in ipairs(char:GetChildren()) do
+            if string.find(item.Name, "Fist of Darkness") then return true end
+        end
+    end
+    return false
 end
 
 local function getDarkbeardBoss()
-    -- Tìm trong Workspace xem có boss Darkbeard xuất hiện sẵn chưa
     local enemies = Workspace:FindFirstChild("Enemies") or Workspace
     for _, v in ipairs(enemies:GetDescendants()) do
         if v.Name == "Darkbeard" and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
@@ -286,56 +297,56 @@ local function getDarkbeardBoss()
 end
 
 -- =========================================================================
--- HỆ THỐNG XỬ LÝ TRIỆU HỒI & ĐÁNH BOSS DARKBEARD (ĐẢO ĐEN / DARK ARENA)
+-- XỬ LÝ TRIỆU HỒI & ĐÁNH BOSS DARKBEARD TẠI ĐẢO ĐEN (DARK ARENA)
 -- =========================================================================
--- Tọa độ bệ thờ / Đảo Đen ở Sea 2 (Dark Arena)
-local darkArenaCFrame = CFrame.new(3781.5, 23.4, -13904.3) 
+local darkArenaCFrame = CFrame.new(3781.5, 23.4, -13904.3)
 
 local function handleDarkbeardEvent()
     _G.AutoFarmChest = false
-    print("⚔️ PHÁT HIỆN SỰ KIỆN DARKBEARD (Hoặc có Fist of Darkness)! Tiến hành xử lý...")
+    print("⚔️ ĐÃ PHÁT HIỆN FIST OF DARKNESS HOẶC BOSS DARKBEARD! Đang tiến hành xử lý...")
     
-    -- Bước 1: Bay tới đảo Dark Arena
-    bayDen(darkArenaCFrame + Vector3.new(0, 20, 0), FarmSpeed)
-    task.wait(1)
+    -- Bay đến Đảo Đen
+    bayDen(darkArenaCFrame + Vector3.new(0, 15, 0), FarmSpeed)
+    task.wait(1.5)
     
-    -- Bước 2: Nếu có Fist trong người, tiến hành đặt vào bệ thờ triệu hồi
+    -- Nếu có Fist of Darkness trong balo, trang bị và chạm vào bệ thờ để triệu hồi
     if hasFistOfDarkness() then
-        print("🗿 Đang cầm Fist of Darkness, tiến hành đặt vào bệ thờ triệu hồi Darkbeard...")
-        -- Kéo Fist vào tay nhân vật
+        print("🗿 Đang trang bị Fist of Darkness để kích hoạt bệ thờ...")
         pcall(function()
             local bp = LocalPlayer.Backpack
-            local fist = bp:FindFirstChild("Fist of Darkness")
-            if fist then
-                LocalPlayer.Character.Humanoid:EquipTool(fist)
+            for _, item in ipairs(bp:GetChildren()) do
+                if string.find(item.Name, "Fist of Darkness") then
+                    LocalPlayer.Character.Humanoid:EquipTool(item)
+                    break
+                end
             end
         end)
         task.wait(1)
         
-        -- Tương tác với bệ thờ (Thường ở Sea 2 Dark Arena có thể dùng Remote hoặc chạm vào bàn thờ)
+        -- Tiến hành chạm sát vào bệ thờ (đúng vị trí trong hình bạn cung cấp) để server nhận diện cắm chìa khóa
+        bayDen(darkArenaCFrame + Vector3.new(0, 3, 0), 150)
+        task.wait(1)
+        
+        -- Kích hoạt remote phòng hờ
         pcall(function()
-            -- Gửi lệnh kích hoạt qua CommF_ hoặc tương tác gần bệ thờ
             local CommF = getCommF()
             if CommF then
-                CommF:InvokeServer("Darkbeard", "Spawn") -- Lệnh gọi nội bộ summon boss
+                CommF:InvokeServer("Darkbeard", "Spawn")
             end
         end)
         task.wait(2)
     end
     
-    -- Bước 3: Tự động đánh Boss Darkbeard (với tốc độ đánh vừa phải, an toàn)
-    print("🛡️ Đã vào khu vực Boss. Bắt đầu đánh Darkbeard (Tốc độ kiểm soát an toàn)...")
-    
-    local combatTimer = 0
+    -- Tiến hành đánh Boss Darkbeard với nhịp độ an toàn (không đánh quá nhanh)
+    print("🛡️ Đang tiến hành đánh Boss Darkbeard (Giữ nhịp độ an toàn)...")
     while _G.AutoDarkbeard do
-        task.wait(0.2) -- Giãn cách nhịp đánh để không bị quá nhanh / tránh lỗi game
+        task.wait(0.3) -- Giãn cách nhịp đánh ổn định, chống lỗi
         
         local boss = getDarkbeardBoss()
         if boss and boss:FindFirstChild("HumanoidRootPart") and boss.Humanoid.Health > 0 then
-            -- Bay lơ lửng sát cạnh Boss để đánh an toàn
+            -- Bay lơ lửng ngay trên đầu Boss để đánh an toàn
             bayDen(boss.HumanoidRootPart.CFrame + Vector3.new(0, 15, 0), FarmSpeed)
             
-            -- Tự động equip vũ khí và đánh thường / bật skill nhẹ nhàng
             pcall(function()
                 local char = LocalPlayer.Character
                 if char then
@@ -354,7 +365,7 @@ local function handleDarkbeardEvent()
                 end
             end)
         else
-            print("🎉 Boss Darkbeard đã bị hạ gục hoặc không tìm thấy! Quay lại tiến trình chính...")
+            print("🎉 Boss Darkbeard đã bị tiêu diệt! Quay lại quá trình săn rương...")
             task.wait(2)
             break
         end
@@ -398,7 +409,7 @@ local function runFarmChest()
         while _G.AutoFarmChest do
             task.wait()
             
-            -- Kiểm tra liên tục: Nếu có Fist trong người hoặc Boss xuất hiện -> Dừng farm rương, chuyển sang đánh Boss
+            -- GIÁM SÁT THỜI GIAN THỰC: Phát hiện có Fist hoặc Boss là ngắt farm rương ngay lập tức
             if isWorld2 and (hasFistOfDarkness() or getDarkbeardBoss()) then
                 _G.AutoFarmChest = false
                 globalNoclip:Disconnect()
@@ -458,19 +469,19 @@ task.spawn(function()
     selectTeam() -- Tự động chọn phe Pirates
     task.wait(2)
     
-    print("========== MARIS HUB: KHỞI ĐỘNG THÀNH CÔNG (DARKBEARD & CHEST) ==========")
+    print("========== MARIS HUB: KHỞI ĐỘNG HOÀN TẤT ==========")
     
-    -- Kiểm tra ngay khi vừa vào server xem có Boss hoặc Fist sẵn không
+    -- Kiểm tra ngay từ đầu khi vào server
     if isWorld2 and (hasFistOfDarkness() or getDarkbeardBoss()) then
         handleDarkbeardEvent()
     else
         runFarmChest()
     end
     
-    -- Luồng giám sát chạy ngầm 24/7
+    -- Vòng lặp siêu giám sát nền 24/7
     while true do
-        task.wait(1)
-        if isWorld2 and _G.AutoDarkbeard and not getDarkbeardBoss() and (hasFistOfDarkness() or getDarkbeardBoss()) then
+        task.wait(0.5)
+        if isWorld2 and _G.AutoDarkbeard and (hasFistOfDarkness() or getDarkbeardBoss()) then
             if _G.AutoFarmChest then
                 _G.AutoFarmChest = false
                 handleDarkbeardEvent()
