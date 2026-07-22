@@ -1,5 +1,5 @@
 -- =========================================================================
--- MARIS HUB: TỔNG HỢP FARM RƯƠNG, ĐỔI SERVER, FARM BOSS & TELEPORT BỆ VẬT PHẨM
+-- MARIS HUB: KẾT HỢP HOÀN CHỈNH (CHEST, SERVER HOP, FAST ATTACK BOSS & TELEPORT BỆ)
 -- =========================================================================
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -17,7 +17,7 @@ local Enemies = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild(
 
 -- Cấu hình chung
 _G.AutoFarmChest = true
-_G.AutoFarmBoss = true
+_G.AutoFarmBoss = true 
 _G.SelectBoss = "Darkbeard"
 _G.FlyHeight = 25              -- Chiều cao bay lơ lửng trên đầu boss[cite: 4]
 _G.ScanDistance = 99999        -- Khoảng cách quét toàn map[cite: 4]
@@ -29,6 +29,7 @@ local FarmSpeed = 300
 local countChests = 0
 
 -- Cấu hình Teleport Bệ & Vật phẩm
+local ToolName = "Fist of Darkness"
 local TargetAltarCFrame = CFrame.new(3777.67, 15.20, -3498.50) -- Tọa độ ô màu vàng sáng trên bệ[cite: 2]
 
 local MeleeList = {
@@ -76,7 +77,7 @@ local function createGlowingText(text, position, fontSize)
 end
 
 local title = createGlowingText("MARIS HUB", UDim2.new(0, 0, 0, 20), 28)
-local status = createGlowingText("Kaitun Farm Dark Fragment", UDim2.new(0, 0, 0, 70), 18)
+local status = createGlowingText("Ultimate Kaitun & Boss Farmer", UDim2.new(0, 0, 0, 70), 18)
 local link = createGlowingText("https://discord.gg/vNWPpQUVuV", UDim2.new(0, 0, 0, 120), 16)
 
 RunService.RenderStepped:Connect(function()
@@ -179,7 +180,7 @@ local function checkRareItems()
 end
 
 -- =========================================================================
--- HÀM TỰ ĐỘNG CẦM VẬT PHẨM HIẾM HOẶC MELEE[cite: 2, 4]
+-- HÀM TỰ ĐỘNG CẦM VẬT PHẨM / MELEE[cite: 2, 4]
 -- =========================================================================
 local function forceEquipSpecificTool()
     local character = LocalPlayer.Character
@@ -224,29 +225,16 @@ local function EquipMelee()
 	return nil
 end
 
-local function UnequipWeapon()
-	local character = LocalPlayer.Character
-	if not character then return end
-	local currentTool = character:FindFirstChildOfClass("Tool")
-	if currentTool then
-		for _, meleeName in ipairs(MeleeList) do
-			if currentTool.Name == meleeName then
-				currentTool.Parent = LocalPlayer.Backpack
-				break
-			end
-		end
-	end
-end
-
 -- =========================================================================
--- HÀM TÌM DARKBEARD TOÀN MAP[cite: 4]
+-- TÌM BOSS DARKBEARD TRONG SERVER[cite: 4]
 -- =========================================================================
 function GetBoss()
-	if not Enemies then return nil end
+	local currentEnemies = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("Enemys") or Workspace:FindFirstChild("Mobs")
+	if not currentEnemies then return nil end
 	local character = LocalPlayer.Character
 	if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
 	
-	for _, v in pairs(Enemies:GetDescendants()) do
+	for _, v in pairs(currentEnemies:GetDescendants()) do
 		if v:IsA("Model") and v.Name == _G.SelectBoss then
 			local humanoid = v:FindFirstChild("Humanoid")
 			local hrp = v:FindFirstChild("HumanoidRootPart")
@@ -326,7 +314,7 @@ local function thucHienHopServer()
 end
 
 -- =========================================================================
--- HÀM DI CHUYỂN MƯỢT MÀ TÍCH HỢP CẦM VẬT PHẨM[cite: 2]
+-- HÀM DI CHUYỂN MƯỢT MÀ TÍCH HỢP TWEEN & NOCLIP (TỪ FILE TELEPORT)[cite: 2, 11]
 -- =========================================================================
 local function bayDen(targetCFrame, speed)
     local character = LocalPlayer.Character
@@ -463,13 +451,19 @@ RunService.Heartbeat:Connect(function()
 				hrp.CFrame = targetHrp.CFrame * CFrame.new(0, _G.FlyHeight, 0)
 				hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 				hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+			else
+				local character = LocalPlayer.Character
+				local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+				if humanoid and humanoid.PlatformStand then
+					humanoid.PlatformStand = false
+				end
 			end
 		end
 	end)
 end)
 
 -- =========================================================================
--- HỆ THỐNG FARM RƯƠNG & XỬ LÝ VẬT PHẨM QUÝ / BỆ TELEPORT[cite: 1, 2]
+-- HỆ THỐNG FARM RƯƠNG & XỬ LÝ VẬT PHẨM QUÝ / BỆ TELEPORT[cite: 1, 2, 11]
 -- =========================================================================
 local function getNearestChest()
     local char = LocalPlayer.Character
@@ -503,9 +497,9 @@ local function runFarmChest()
     
     task.spawn(function()
         while true do
-            task.wait(0.1)
+            task.wait(0.2)
             
-            -- ƯU TIÊN 1: PHÁT HIỆN VẬT PHẨM HIẾM (DỪNG RƯƠNG/BOSS VÀ BAY THẲNG VÀO BỆ)[cite: 1, 2]
+            -- ƯU TIÊN 1: PHÁT HIỆN VẬT PHẨM HIẾM (DỪNG RƯƠNG/BOSS VÀ BAY THẲNG VÀO BỆ Ô VÀNG SÁNG)[cite: 1, 2, 11]
             if checkRareItems() then
                 _G.AutoFarmChest = false
                 _G.AutoFarmBoss = false
@@ -518,23 +512,24 @@ local function runFarmChest()
                     if hrp then
                         bayDen(hrp.CFrame + Vector3.new(0, 150, 0), FarmSpeed)
                         bayDen(TargetAltarCFrame, FarmSpeed)
-                        print("✨ ĐÃ HOÀN TẤT ĐƯA VẬT PHẨM VÀO BỆ THÀNH CÔNG!")
+                        print("✨ ĐÃ ĐƯA VẬT PHẨM VÀO Ô MÀU VÀNG SÁNG THÀNH CÔNG!")
                     end
                 end)
                 break
             end
             
-            -- ƯU TIÊN 2: NẾU CÓ BOSS DARKBEARD TRONG SERVER THÌ TẠM DỪNG FARM RƯƠNG ĐỂ ĐÁNH BOSS
+            -- ƯU TIÊN 2: NẾU CÓ BOSS DARKBEARD TRONG SERVER THÌ TẠM DỪNG RƯƠNG ĐỂ ĐÁNH BOSS[cite: 9]
             if GetBoss() then
                 print("🚨 PHÁT HIỆN DARKBEARD XUẤT HIỆN! ĐANG TIÊU DIỆT BOSS...")
                 while GetBoss() and not checkRareItems() do
                     task.wait(1)
                 end
                 print("✨ ĐÃ TIÊU DIỆT XONG BOSS, TIẾP TỤC QUÁ TRÌNH KHÁC...")
+                task.wait(1)
             end
             
-            -- ƯU TIÊN 3: CHẠY FARM RƯƠNG BÌNH THƯỜNG
-            if _G.AutoFarmChest then
+            -- ƯU TIÊN 3: CHẠY FARM RƯƠNG BÌNH THƯỜNG[cite: 9]
+            if _G.AutoFarmChest and not GetBoss() then
                 local targetChest = getNearestChest()
                 if targetChest then
                     local chestPos = targetChest:GetPivot().Position
@@ -579,6 +574,6 @@ task.spawn(function()
     selectTeam() -- Tự động chọn phe Pirates[cite: 1]
     task.wait(2)
     
-    print("========== MARIS HUB: TÍCH HỢP HOÀN TẤT (CHEST, BOSS & ALTAR) ==========")
+    print("========== MARIS HUB: KẾT HỢP HOÀN TẤT (CHEST, BOSS & ALTAR TELEPORT) ==========")
     runFarmChest()
 end)
