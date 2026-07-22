@@ -76,7 +76,7 @@ local function createGlowingText(text, position, fontSize)
 end
 
 local title = createGlowingText("MARIS HUB", UDim2.new(0, 0, 0, 20), 28)
-local status = createGlowingText("Chest, Boss & Altar Teleport", UDim2.new(0, 0, 0, 70), 18)
+local status = createGlowingText("Kaitun Farm Dark Fragment", UDim2.new(0, 0, 0, 70), 18)
 local link = createGlowingText("https://discord.gg/vNWPpQUVuV", UDim2.new(0, 0, 0, 120), 16)
 
 RunService.RenderStepped:Connect(function()
